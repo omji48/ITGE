@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITGE - Attack Path Dashboard</title>
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0A0A0A;
+            --surface-color: #151515;
+            --surface-hover: #1A1A1A;
+            --accent-cyan: #00D6FF;
+            --accent-cyan-dim: rgba(0, 214, 255, 0.2);
+            --danger-red: #FF3366;
+            --warning-yellow: #FFD700;
+            --service-blue: #3366FF;
+            --text-main: #FFFFFF;
+            --text-dim: #888888;
+            --border-color: #333333;
+            --font-sans: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- SECTION 1: HEADER --- */
+        header {
+            height: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(10, 10, 10, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 20px;
+            letter-spacing: 2px;
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo span {
+            color: white;
+            font-weight: 300;
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--danger-red);
+            transition: background-color 0.3s ease;
+            box-shadow: 0 0 8px var(--danger-red);
+        }
+
+        .status-dot.connected {
+            background-color: #00FF66;
+            box-shadow: 0 0 8px #00FF66;
+        }
+
+        /* --- SECTION 2: GRAPH AREA --- */
+        main {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #111 0%, #0A0A0A 100%);
+        }
+
+        #graph-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .node circle {
+            stroke: var(--bg-color);
+            stroke-width: 2px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .node text {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            fill: var(--text-dim);
+            pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            transition: fill 0.2s ease, font-weight 0.2s ease;
+        }
+
+        .link {
+            stroke: #444;
+            stroke-opacity: 0.6;
+            fill: none;
+            transition: stroke 0.2s ease, stroke-opacity 0.2s ease, stroke-width 0.2s ease;
+        }
+        
+        .link-arrow {
+            fill: #444;
+            transition: fill 0.2s ease;
+        }
+
+        /* Hover states via classes added in JS */
+        .node.highlighted circle {
+            stroke: var(--accent-cyan);
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 8px var(--accent-cyan));
+        }
+
+        .node.highlighted text {
+            fill: #FFF;
+            font-weight: 700;
+        }
+
+        .node.dimmed {
+            opacity: 0.2;
+        }
+
+        .link.highlighted {
+            stroke: var(--accent-cyan);
+            stroke-width: 2px;
+            stroke-opacity: 1;
+        }
+
+        .link.dimmed {
+            stroke-opacity: 0.1;
+        }
+
+        /* Side Panel for Node Details */
+        #side-panel {
+            position: absolute;
+            top: 20px;
+            right: -400px;
+            width: 340px;
+            background: rgba(21, 21, 21, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--accent-cyan-dim);
+            border-radius: 8px;
+            padding: 20px;
+            transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
+            max-height: calc(100% - 40px);
+            overflow-y: auto;
+        }
+
+        #side-panel.open {
+            right: 20px;
+        }
+
+        .panel-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            cursor: pointer;
+            color: var(--text-dim);
+            font-size: 20px;
+        }
+        
+        .panel-close:hover { color: white; }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: white;
+            padding-right: 20px;
+            word-wrap: break-word;
+        }
+
+        .panel-type {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+        .detail-row {
+            margin-bottom: 15px;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .detail-val {
+            font-size: 14px;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 2px solid var(--border-color);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* Spinner Overlay */
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10,10,10,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            color: var(--accent-cyan);
+            font-family: var(--font-mono);
+            transition: opacity 0.3s;
+        }
+
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid var(--accent-cyan-dim);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* --- SECTION 3: BOTTOM PANEL --- */
+        #bottom-panel {
+            height: 280px;
+            background: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .card {
+            flex: 1;
+            background: #0D0D0D;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: border-color 0.3s ease;
+        }
+
+        .card:hover { border-color: var(--text-dim); }
+
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-cyan);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-body {
+            flex: 1;
+            padding: 15px 20px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* Card 1: Top Attack Paths */
+        .path-list { list-style: none; }
+        .path-item {
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        .path-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .path-risk { float: right; font-family: var(--font-mono); font-weight: bold; }
+        .risk-high { color: var(--danger-red); }
+        .risk-med { color: var(--warning-yellow); }
+        .risk-low { color: #00FF66; }
+        .path-title { font-weight: 600; margin-bottom: 4px; color: white; display:block; }
+        .path-summary { color: var(--text-dim); font-size: 12px; }
+
+        /* Card 2: Trust Violations */
+        .violation-pill {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--danger-red);
+            border: 1px solid rgba(255, 51, 102, 0.3);
+        }
+        .violation-esc {
+            background: rgba(255, 215, 0, 0.1);
+            color: var(--warning-yellow);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        /* Card 3: Export Controls */
+        .export-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+            justify-content: center;
+        }
+        
+        .btn {
+            background: transparent;
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            padding: 12px 20px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: var(--accent-cyan-dim);
+            box-shadow: 0 0 15px var(--accent-cyan-dim);
+            color: white;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    </style>
+</head>
+<body>
+
+    <!-- SECTION 1: Header Bar -->
+    <header>
+        <div class="logo">ITGE <span>// Identity & Trust Graph Engine</span></div>
+        <div class="status-container">
+            <span id="status-text">DISCONNECTED</span>
+            <div id="status-dot" class="status-dot"></div>
+        </div>
+    </header>
+
+    <!-- SECTION 2: Graph Area -->
+    <main>
+        <div id="overlay">
+            <div class="spinner"></div>
+            <div>CONNECTING TO ENGINE...</div>
+        </div>
+        
+        <svg id="graph-container"></svg>
+        
+        <div id="side-panel">
+            <div class="panel-close" onclick="closePanel()">×</div>
+            <div id="sp-title" class="panel-title">-</div>
+            <div id="sp-type" class="panel-type" style="color: var(--text-dim);">-</div>
+            
+            <div class="detail-row">
+                <div class="detail-label">Node ID</div>
+                <div id="sp-id" class="detail-val">-</div>
+            </div>
+            <div class="detail-row" id="sp-connections-wrapper">
+                <div class="detail-label">Connections</div>
+                <div id="sp-connections" class="detail-val">-</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Security Context</div>
+                <div id="sp-context" class="detail-val">-</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- SECTION 3: Bottom Panel -->
+    <div id="bottom-panel">
+        <!-- Card 1 -->
+        <div class="card">
+            <div class="card-header">
+                Top Attack Paths
+                <span id="paths-count" style="color: white; font-size: 12px; background: #333; padding: 2px 8px; border-radius: 10px;">0</span>
+            </div>
+            <div class="card-body" id="paths-list">
+                <div style="color: var(--text-dim); font-style: italic;">Waiting for data...</div>
+            </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="card">
+            <div class="card-header">Trust Findings & Extracted Issues</div>
+            <div class="card-body" id="trust-issues-list">
+                <div style="color: var(--text-dim); font-style: italic;">No specific anomalies detected yet.</div>
+            </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="card">
+            <div class="card-header">Export Controls</div>
+            <div class="card-body export-actions">
+                <button class="btn" id="btn-export-json" onclick="exportData('json')">
+                    ↓ Download JSON Report
+                </button>
+                <button class="btn" id="btn-export-md" onclick="exportData('markdown')">
+                    ↓ Download Markdown Report
+                </button>
+                <div style="text-align: center; color: var(--text-dim); font-size: 11px; margin-top: auto;">
+                    Exports are generated client-side from the latest analysis state.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frontend Logic -->
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let simulation, svg, linkGroup, nodeGroup, g;
+        let width, height;
+        let graphData = { nodes: [], links: [] };
+        let rawAnalysisData = null;
+
+        // D3.js Setup
+        function initGraph() {
+            const container = document.getElementById('graph-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+
+            svg = d3.select("#graph-container")
+                .attr("viewBox", [0, 0, width, height]);
+
+            // Arrow marker definition
+            svg.append("defs").append("marker")
+                .attr("id", "arrow")
+                .attr("viewBox", "0 -5 10 10")
+                .attr("refX", 25) // Offset to not overlap node radius (now 15)
+                .attr("refY", 0)
+                .attr("markerWidth", 10)
+                .attr("markerHeight", 10)
+                .attr("orient", "auto")
+                .append("path")
+                .attr("d", "M0,-5L10,0L0,5")
+                .attr("class", "link-arrow");
+
+            g = svg.append("g");
+
+            linkGroup = g.append("g").attr("class", "links");
+            nodeGroup = g.append("g").attr("class", "nodes");
+
+            // Zoom functionality
+            svg.call(d3.zoom()
+                .extent([[0, 0], [width, height]])
+                .scaleExtent([0.1, 4])
+                .on("zoom", (e) => g.attr("transform", e.transform)));
+
+            simulation = d3.forceSimulation()
+                .force("link", d3.forceLink().id(d => d.id).distance(200))
+                .force("charge", d3.forceManyBody().strength(-1000))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collide", d3.forceCollide().radius(60));
+        }
+
+        // Helper to truncate long labels
+        function truncateLabel(text, len = 20) {
+            if (!text) return "";
+            if (text.length <= len) return text;
+            
+            // Try to extract domain if it's a URL
+            try {
+                if (text.startsWith('http')) {
+                    const url = new URL(text);
+                    const domain = url.hostname;
+                    if (domain.length > len) return domain.substring(0, len-3) + "...";
+                    return domain + "...";
+                }
+            } catch(e) {}
+
+            return text.substring(0, len - 3) + "...";
+        }
+
+        // Color mapping by node type
+        function getNodeColor(type) {
+            type = (type || "").toLowerCase();
+            if(type.includes('datastore')) return 'var(--danger-red)';
+            if(type.includes('identityprovider')) return 'var(--accent-cyan)';
+            if(type.includes('role')) return 'var(--warning-yellow)';
+            if(type.includes('service')) return 'var(--service-blue)';
+            return 'var(--text-main)'; // endpoint or default
+        }
+
+        // Render Graph Data
+        function renderGraph(data) {
+            graphData = data;
+            
+            // Render Links
+            const link = linkGroup
+                .selectAll("path")
+                .data(data.links, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
+                .join("path")
+                .attr("class", "link")
+                .attr("marker-end", "url(#arrow)")
+                .attr("stroke-width", d => Math.max(1, d.risk * 3));
+
+            // Render Nodes
+            const node = nodeGroup
+                .selectAll("g")
+                .data(data.nodes, d => d.id)
+                .join("g")
+                .attr("class", "node")
+                .call(drag(simulation))
+                .on("click", handleNodeClick)
+                .on("mouseover", handleMouseOver)
+                .on("mouseout", handleMouseOut);
+
+            node.selectAll("circle").remove();
+            node.selectAll("text").remove();
+
+            node.append("circle")
+                .attr("r", 15)
+                .attr("fill", d => getNodeColor(d.type))
+                .style("filter", d => {
+                    // Slight glow for potentially high-risk nodes (simplified check)
+                    return d.type && d.type.toLowerCase().includes('datastore') ? "drop-shadow(0 0 5px var(--danger-red))" : "none";
+                });
+
+            node.append("text")
+                .attr("dx", 22)
+                .attr("dy", 5)
+                .text(d => truncateLabel(d.name, 25));
+
+            simulation.nodes(data.nodes).on("tick", () => {
+                link.attr("d", d => {
+                    const dx = d.target.x - d.source.x,
+                          dy = d.target.y - d.source.y,
+                          dr = Math.sqrt(dx * dx + dy * dy);
+                    // Straight lines for clarity instead of curves, or slight curve
+                    // return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+                    return `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`;
+                });
+                node.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+
+            simulation.force("link").links(data.links);
+            simulation.alpha(1).restart();
+        }
+
+        // Drag handlers
+        const drag = simulation => {
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x; d.fy = d.y;
+            }
+            function dragged(event, d) {
+                d.fx = event.x; d.fy = event.y;
+            }
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null; d.fy = null;
+            }
+            return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+        }
+
+        // Interaction Handlers
+        function handleMouseOver(event, d) {
+            // Highlight connected edges and nodes
+            const connectedLinks = graphData.links.filter(l => l.source.id === d.id || l.target.id === d.id);
+            const connectedNodeIds = new Set();
+            connectedLinks.forEach(l => {
+                connectedNodeIds.add(l.source.id);
+                connectedNodeIds.add(l.target.id);
+            });
+            connectedNodeIds.add(d.id);
+
+            d3.selectAll('.node').classed('dimmed', n => !connectedNodeIds.has(n.id))
+                                 .classed('highlighted', n => n.id === d.id);
+            d3.selectAll('.link').classed('dimmed', l => l.source.id !== d.id && l.target.id !== d.id)
+                                 .classed('highlighted', l => l.source.id === d.id || l.target.id === d.id);
+        }
+
+        function handleMouseOut() {
+            d3.selectAll('.node').classed('dimmed', false).classed('highlighted', false);
+            d3.selectAll('.link').classed('dimmed', false).classed('highlighted', false);
+        }
+
+        function handleNodeClick(event, d) {
+            d3.select('#side-panel').classed('open', true);
+            document.getElementById('sp-title').innerText = d.name;
+            let typeColor = getNodeColor(d.type);
+            document.getElementById('sp-type').innerText = d.type;
+            document.getElementById('sp-type').style.color = typeColor;
+            document.getElementById('sp-id').innerText = d.id;
+            
+            // Find relations
+            let connectionsHtml = "";
+            graphData.links.forEach(l => {
+                const targetName = l.target.name || l.target;
+                const sourceName = l.source.name || l.source;
+                if(l.source.id === d.id) {
+                    connectionsHtml += `→ ${truncateLabel(targetName, 30)}<br>`;
+                } else if(l.target.id === d.id) {
+                    connectionsHtml += `← ${truncateLabel(sourceName, 30)}<br>`;
+                }
+            });
+            document.getElementById('sp-connections').innerHTML = connectionsHtml || "None";
+            
+            // Real Security Context from metadata
+            let metaContext = "";
+            if (d.strategic_value) metaContext += `<strong>Value:</strong> ${d.strategic_value}<br>`;
+            if (d.summary) metaContext += `<p style="margin-top:8px; font-size:11px; line-height:1.4;">${d.summary}</p>`;
+            
+            document.getElementById('sp-context').innerHTML = metaContext || "No specific context available.";
+            
+            event.stopPropagation();
+        }
+
+        function closePanel() {
+            d3.select('#side-panel').classed('open', false);
+        }
+        
+        d3.select("main").on("click", closePanel);
+
+        // API Polling & Data Parsing
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                if (res.ok) {
+                    document.getElementById('status-dot').className = 'status-dot connected';
+                    document.getElementById('status-text').innerText = 'CONNECTED';
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                document.getElementById('status-dot').className = 'status-dot';
+                document.getElementById('status-text').innerText = 'DISCONNECTED';
+            }
+        }
+
+        async function fetchAnalysis() {
+            try {
+                const res = await fetch(`${API_BASE}/analysis/latest`);
+                if(!res.ok) throw new Error("Backend not available or no analysis yet");
+                
+                const data = await res.json();
+                rawAnalysisData = data;
+                document.getElementById('overlay').style.opacity = 0;
+                setTimeout(() => document.getElementById('overlay').style.display = 'none', 300);
+                
+                processBackendData(data);
+                updateBottomPanel(data);
+
+            } catch (err) {
+                console.error(err);
+                if(rawAnalysisData == null) {
+                    document.getElementById('overlay').innerHTML = `
+                        <div style="font-size:24px; color:var(--danger-red); margin-bottom:10px;">⚠️ API ERROR</div>
+                        <div>Cannot connect to ${API_BASE}/analysis/latest</div>
+                        <div style="font-size:11px; margin-top:20px; color:var(--text-dim)">Is the server running with CORS enabled?</div>
+                    `;
+                }
+            }
+        }
+
+        function processBackendData(data) {
+            const extractedNodes = new Map();
+            const extractedLinks = [];
+
+            (data.top_paths || []).forEach(path => {
+                (path.steps || []).forEach(step => {
+                    // Register Source Node
+                    if(!extractedNodes.has(step.source_node_id)) {
+                        extractedNodes.set(step.source_node_id, {
+                            id: step.source_node_id,
+                            name: step.source_node_name,
+                            type: step.source_node_type
+                        });
+                    }
+                    // Register Target Node
+                    if(!extractedNodes.has(step.target_node_id)) {
+                        extractedNodes.set(step.target_node_id, {
+                            id: step.target_node_id,
+                            name: step.target_node_name,
+                            type: step.target_node_type
+                        });
+                    }
+                    // Register Edge
+                        extractedLinks.push({
+                            source: step.source_node_id,
+                            target: step.target_node_id,
+                            type: step.step_type,
+                            rel: step.relationship_type,
+                            risk: path.risk_score || 0.1
+                        });
+
+                        // Enrich node info with the path summary/value if not already present
+                        const sNode = extractedNodes.get(step.source_node_id);
+                        if (!sNode.summary) {
+                            sNode.summary = path.summary;
+                            sNode.strategic_value = path.strategic_value;
+                        }
+                        const tNode = extractedNodes.get(step.target_node_id);
+                        if (!tNode.summary) {
+                            tNode.summary = path.summary;
+                            tNode.strategic_value = path.strategic_value;
+                        }
+                    });
+                });
+
+            renderGraph({
+                nodes: Array.from(extractedNodes.values()),
+                links: extractedLinks
+            });
+        }
+
+        function updateBottomPanel(data) {
+            // Update Card 1
+            const pathsList = document.getElementById('paths-list');
+            document.getElementById('paths-count').innerText = data.total_paths_found || 0;
+            
+            pathsList.innerHTML = '';
+            if(!data.top_paths || data.top_paths.length === 0) {
+                pathsList.innerHTML = `<div style="color: var(--text-dim)">No paths found.</div>`;
+            } else {
+                data.top_paths.forEach((p, idx) => {
+                    let riskStr = p.risk_score ? p.risk_score.toFixed(2) : "0.00";
+                    let riskCls = parseFloat(riskStr) > 0.7 ? 'risk-high' : (parseFloat(riskStr) > 0.4 ? 'risk-med' : 'risk-low');
+                    
+                    pathsList.innerHTML += `
+                        <div class="path-item">
+                            <span class="path-risk ${riskCls}">Risk: ${riskStr}</span>
+                            <span class="path-title">#${idx+1} TARGET: ${p.target_node_name}</span>
+                            <div class="path-summary">${p.summary || "No summary provided by engine."}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Update Card 2
+            const issuesList = document.getElementById('trust-issues-list');
+            issuesList.innerHTML = '';
+            
+            let issuesHtml = "";
+            let issuesCount = 0;
+            
+            (data.top_paths || []).forEach(p => {
+                (p.steps || []).forEach(step => {
+                    if (step.crosses_boundary) {
+                        issuesHtml += `<span class="violation-pill">BOUNDARY CROSSING: ${step.source_node_name}</span>`;
+                        issuesCount++;
+                    }
+                    if (step.escalates_privilege) {
+                        issuesHtml += `<span class="violation-pill violation-esc">PRIVILEGE ESCALATION: ${step.target_node_name}</span>`;
+                        issuesCount++;
+                    }
+                });
+            });
+
+            if (issuesCount === 0) {
+                issuesList.innerHTML = `<div style="color: var(--text-dim)">No notable trust boundary or privilege escalations found in latest paths.</div>`;
+            } else {
+                issuesList.innerHTML = issuesHtml;
+            }
+        }
+
+        // Export Actions
+        function exportData(format) {
+            const url = `${API_BASE}/export/${format}`;
+            window.open(url, '_blank');
+        }
+
+        function generateMarkdown(data) {
+            let md = `# ITGE Attack Path Analysis\n\n`;
+            md += `**Total Paths Found:** ${data.total_paths_found}\n`;
+            md += `**Avg Risk Score:** ${data.avg_risk_score ? data.avg_risk_score.toFixed(2) : 0}\n\n`;
+            md += `## Top Attack Paths\n\n`;
+            
+            (data.top_paths || []).forEach((p, idx) => {
+                md += `### ${idx+1}. Path to ${p.target_node_name}\n`;
+                md += `- **Risk Score**: ${p.risk_score ? p.risk_score.toFixed(2) : 0}\n`;
+                md += `- **Strategic Value**: ${p.strategic_value}\n`;
+                md += `\n**Summary**: ${p.summary}\n\n`;
+                md += `**Steps**:\n`;
+                (p.steps || []).forEach(step => {
+                    md += `  - ${step.step_number}. ${step.action_description} (${step.source_node_name} -> ${step.target_node_name})\n`;
+                });
+                md += `\n---\n\n`;
+            });
+            
+            return md;
+        }
+
+        // Initialization
+        window.addEventListener('load', () => {
+            initGraph();
+            checkHealth();
+            fetchAnalysis();
+            
+            setInterval(checkHealth, 5000);
+            setInterval(fetchAnalysis, 30000);
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                width = document.getElementById('graph-container').clientWidth;
+                height = document.getElementById('graph-container').clientHeight;
+                svg.attr("viewBox", [0, 0, width, height]);
+                simulation.force("center", d3.forceCenter(width / 2, height / 2));
+                simulation.alpha(0.3).restart();
+            });
+        });
+    </script>
+</body>
+</html>
