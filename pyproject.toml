@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "itge"
+version = "0.1.0"
+description = "ITGE - Identity & Trust Graph Engine: Strategic attack path modeling for red teams"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "ITGE Contributors"}
+]
+keywords = ["security", "red-team", "attack-graph", "identity", "trust"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "aiofiles>=23.2.1",
+    "fastapi>=0.104.0",
+    "pydantic>=2.5.0",
+    "neo4j>=5.14.0",
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    "httpx>=0.25.0",
+    "uvicorn>=0.24.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.11.0",
+    "ruff>=0.1.6",
+    "mypy>=1.7.0",
+]
+
+[project.scripts]
+itge = "itge.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/omji48/ITGE"
+Documentation = "https://github.com/omji48/ITGE/docs"
+Repository = "https://github.com/omji48/ITGE"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["itge*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
