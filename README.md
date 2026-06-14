@@ -74,7 +74,15 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
-### 1. Configure Neo4j
+### 1. Start Neo4j
+
+Start the database container using Docker Compose:
+
+```bash
+docker compose up -d neo4j
+```
+
+### 2. Configure Neo4j
 
 ```bash
 itge config --neo4j-uri bolt://localhost:7687 \
@@ -83,7 +91,7 @@ itge config --neo4j-uri bolt://localhost:7687 \
             --save config.json
 ```
 
-### 2. Ingest Data
+### 3. Ingest Data
 
 ```bash
 itge ingest --burp burp_export.xml
@@ -98,7 +106,7 @@ You can mix sources in one run:
 itge ingest --burp burp_export.xml --amass amass.json --nmap scan.xml
 ```
 
-### 3. Analyze Paths
+### 4. Analyze Paths
 
 ```bash
 itge analyze --persona "Unauthenticated Attacker" \
@@ -116,7 +124,7 @@ itge analyze --persona "Low-Privilege User" \
              --min-target-privilege 80
 ```
 
-### 4. Review Results
+### 5. Review Results
 
 ```bash
 itge show-paths --top 10 --sort-by risk
@@ -125,7 +133,7 @@ itge export --format markdown --output report.md
 itge export --format csv --output report.csv
 ```
 
-### 5. Serve API
+### 6. Serve API
 
 ```bash
 itge serve-api --host 127.0.0.1 --port 8000
@@ -137,7 +145,7 @@ Available endpoints:
 - `GET /config`
 - `GET /analysis/latest`
 
-### 6. Run Preflight Checks
+### 7. Run Preflight Checks
 
 ```bash
 itge doctor
