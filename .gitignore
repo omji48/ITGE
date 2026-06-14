@@ -1,0 +1,33 @@
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+itge_output/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+neo4j/data/
+neo4j/logs/
+neo4j/plugins/
+neo4j/import/
+neo4j/data_backup/
+
+# Environment file
+.env
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Temporary data files
+temp_path.json
